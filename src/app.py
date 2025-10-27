@@ -211,6 +211,127 @@ def get_operational_status():
         }), 500
 
 
+@app.route('/api/simulate/obstacle', methods=['POST'])
+def simulate_obstacle():
+    """
+    Simula un obstáculo detectado (solo para desarrollo/testing)
+    Body: {
+        "device_id": 1,
+        "distance_cm": 15,
+        "timestamp": "2025-10-27T10:30:00"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'device_id' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'device_id es requerido'
+            }), 400
+        
+        # Registrar evento de obstáculo
+        obstacle_data = {
+            'device_id': data['device_id'],
+            'status_clave': 1,  # status_clave para obstáculo
+            'meta': {
+                'distance_cm': data.get('distance_cm', 10),
+                'sensor': 'simulated',
+                'origin': 'web_simulation',
+                'timestamp': data.get('timestamp', datetime.now().isoformat())
+            }
+        }
+        
+        result = movimiento_controller.log_obstacle_event(obstacle_data)
+        
+        # Emitir alerta de obstáculo por WebSocket
+        socketio.emit('obstacle_alert', {
+            'device_id': data['device_id'],
+            'status': 1,
+            'timestamp': datetime.now().isoformat(),
+            'meta': obstacle_data['meta']
+        }, to=None)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Obstáculo simulado correctamente',
+            'data': result
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/movements/sequence', methods=['POST'])
+def execute_movement_sequence():
+    """
+    Ejecuta una secuencia de movimientos predefinida
+    Body: {
+        "device_id": 1,
+        "sequence_name": "square",
+        "movements": [
+            {"command": "forward", "duration_ms": 2000},
+            {"command": "right", "duration_ms": 500}
+        ]
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'device_id' not in data or 'movements' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'device_id y movements son requeridos'
+            }), 400
+        
+        device_id = data['device_id']
+        movements = data['movements']
+        sequence_name = data.get('sequence_name', 'custom')
+        
+        # Validar que movements sea una lista
+        if not isinstance(movements, list) or len(movements) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'movements debe ser una lista no vacía'
+            }), 400
+        
+        results = []
+        for movement in movements:
+            if 'command' not in movement:
+                continue
+                
+            movement_data = {
+                'device_id': device_id,
+                'command': movement['command'],
+                'duration_ms': movement.get('duration_ms', 1000),
+                'meta': {
+                    'origin': 'sequence',
+                    'sequence_name': sequence_name,
+                    **movement.get('meta', {})
+                }
+            }
+            
+            result = movimiento_controller.process_websocket_command(movement_data)
+            results.append(result)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Secuencia {sequence_name} ejecutada',
+            'sequence_name': sequence_name,
+            'total_movements': len(results),
+            'results': results
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 # =====================================================
 # WEBSOCKET EVENTOS
 # =====================================================
@@ -221,12 +342,13 @@ def handle_connect():
     Maneja la conexión de un nuevo cliente WebSocket
     """
     client_ip = request.remote_addr
-    print(f'[WebSocket] Cliente conectado: {client_ip} - SID: {request.sid}')
+    client_sid = request.sid  # type: ignore - sid is added by Flask-SocketIO at runtime
+    print(f'[WebSocket] Cliente conectado: {client_ip} - SID: {client_sid}')
     emit('connection_response', {
         'status': 'connected',
         'message': 'Conectado exitosamente al servidor CarroIoT',
         'timestamp': datetime.now().isoformat(),
-        'sid': request.sid
+        'sid': client_sid
     })
 
 
@@ -235,7 +357,8 @@ def handle_disconnect():
     """
     Maneja la desconexión de un cliente WebSocket
     """
-    print(f'[WebSocket] Cliente desconectado: {request.sid}')
+    client_sid = request.sid  # type: ignore - sid is added by Flask-SocketIO at runtime
+    print(f'[WebSocket] Cliente desconectado: {client_sid}')
 
 
 @socketio.on('register_device')
@@ -260,7 +383,7 @@ def handle_register_device(data):
             'room': room,
             'message': f'Dispositivo registrado en sala {room}',
             'timestamp': datetime.now().isoformat()
-        })
+        }, to=room)
     except Exception as e:
         emit('registration_error', {
             'success': False,
@@ -314,7 +437,7 @@ def handle_movement_command(data):
                 'duration_ms': data.get('duration_ms', 1000),
                 'timestamp': datetime.now().isoformat(),
                 'meta': data.get('meta', {})
-            }, room=room)
+            }, to=room)
             
             # Confirmar al cliente que envió el comando
             emit('command_sent', result)
@@ -349,7 +472,7 @@ def handle_obstacle_detected(data):
             'status': data.get('status_clave'),
             'timestamp': datetime.now().isoformat(),
             'meta': data.get('meta', {})
-        }, broadcast=True)
+        }, to=None)
         
         emit('obstacle_logged', result)
         
@@ -377,7 +500,7 @@ def handle_device_status(data):
             'device_id': data['device_id'],
             'status': data,
             'timestamp': datetime.now().isoformat()
-        }, broadcast=True)
+        }, to=None)
         
     except Exception as e:
         print(f'[WebSocket] Error en device_status: {str(e)}')
