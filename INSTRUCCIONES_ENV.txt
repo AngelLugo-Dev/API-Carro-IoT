@@ -1,0 +1,72 @@
+# =====================================================
+# ARCHIVO .ENV - CONFIGURACIÓN PARA EC2
+# =====================================================
+# 
+# ⚠️ ESTE ARCHIVO ES SOLO PARA REFERENCIA
+# ⚠️ NO LO SUBAS A GITHUB
+# ⚠️ LO CREARÁS DIRECTAMENTE EN TU EC2
+#
+# INSTRUCCIONES:
+# 1. Conéctate a tu EC2 por SSH
+# 2. cd ~/CarroIoT/backend-api
+# 3. nano .env
+# 4. Copia el contenido de abajo (líneas 15-27)
+# 5. Reemplaza con TUS datos reales de Aurora
+# 6. Guarda: Ctrl+O, Enter, Ctrl+X
+
+# === COPIA DESDE AQUÍ ===
+DB_HOST=tu-aurora-endpoint.cluster-xxxxx.us-east-1.rds.amazonaws.com
+DB_PORT=3306
+DB_USER=admin
+DB_PASSWORD=TuPasswordDeAurora123
+DB_NAME=carrito_iot
+
+FLASK_ENV=production
+SECRET_KEY=genera-una-clave-aleatoria-segura
+PORT=5500
+HOST=0.0.0.0
+CORS_ORIGINS=*
+# === HASTA AQUÍ ===
+
+# =====================================================
+# DÓNDE OBTENER CADA DATO:
+# =====================================================
+#
+# DB_HOST: 
+#   AWS Console → RDS → Databases → [Tu Cluster Aurora]
+#   Tab "Connectivity & Security" → Endpoint (Writer)
+#   
+# DB_USER: 
+#   El usuario "Master username" de tu Aurora (usualmente: admin)
+#   
+# DB_PASSWORD: 
+#   La contraseña que configuraste al crear Aurora
+#   
+# DB_NAME: 
+#   Si ya creaste la BD: carrito_iot
+#   Si usaste otro nombre: pon ese nombre aquí
+#
+# SECRET_KEY:
+#   Puedes generarla en tu PC con:
+#   python -c "import secrets; print(secrets.token_hex(32))"
+#
+# =====================================================
+# ¿CÓMO VERIFICAR QUE LA BD YA EXISTE?
+# =====================================================
+#
+# Desde tu EC2:
+#   mysql -h tu-aurora-endpoint.rds.amazonaws.com -u admin -p
+#   (te pedirá la password)
+#   
+#   Dentro de MySQL:
+#   SHOW DATABASES;
+#   USE carrito_iot;
+#   SHOW TABLES;
+#
+# Si ves las tablas (devices, device_events, etc.):
+#   ✅ Tu BD ya está lista, NO ejecutes init_database.sql
+#
+# Si NO ves las tablas o la BD no existe:
+#   ❌ Necesitas ejecutar init_database.sql:
+#   mysql -h tu-aurora.rds.amazonaws.com -u admin -p < init_database.sql
+#
