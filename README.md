@@ -1,370 +1,130 @@
-# CarroIoT - Backend API
+# Backend IoT Car Control (FastAPI + Socket.IO)
 
-API REST con WebSocket para control remoto de carrito IoT. Desarrollado con Flask, arquitectura Modelo-Controlador y comunicación PUSH en tiempo real.
+API en arquitectura MVC con comunicaciones push por Socket.IO, compatible con el frontend publicado en GitHub Pages.
 
-## 🚀 Características
+- Framework: FastAPI (REST) + python-socketio (ASGI)
+- WebSocket: Socket.IO (eventos: register_device, movement_command, etc.)
+- Puerto: 5500
+- CORS: abierto y con whitelist al dominio de GitHub Pages
+- Base de datos: MySQL en AWS RDS (usa SPs ya creados)
 
-- **Framework**: Flask 3.0 con Python 3.8+
-- **Arquitectura**: Modelo-Controlador (OOP)
-- **Base de Datos**: AWS Aurora RDS MySQL
-- **WebSocket**: Flask-SocketIO para comunicación PUSH bidireccional
-- **CORS**: Configurado para aceptar conexiones de cualquier IP
-- **Puerto**: 5500
-- **Escalabilidad**: Diseñado para múltiples dispositivos simultáneos
-
-## 📁 Estructura del Proyecto
+## Estructura
 
 ```
-backend-api/
-├── src/
-│   ├── app.py                          # Aplicación principal Flask + SocketIO
-│   ├── models/                         # Capa de Modelos (acceso a datos)
-│   │   ├── __init__.py
-│   │   ├── carrito.py                  # Modelo de dispositivos
-│   │   └── movimiento.py               # Modelo de movimientos y eventos
-│   ├── controllers/                    # Capa de Controladores (lógica de negocio)
-│   │   ├── __init__.py
-│   │   ├── carrito_controller.py       # Controlador de dispositivos
-│   │   └── movimiento_controller.py    # Controlador de movimientos
-│   ├── config/                         # Configuración
-│   │   ├── __init__.py
-│   │   └── database.py                 # Gestión de conexión a BD (Singleton)
-│   └── utils/                          # Utilidades (futuro)
-│       └── __init__.py
-├── requirements.txt                    # Dependencias Python
-├── .env.example                        # Template de variables de entorno
-└── README.md                          # Este archivo
+backend/
+  requirements.txt
+  app/
+    main.py                 # Punto de entrada ASGI (REST + Socket.IO)
+    config.py               # Variables de entorno y settings
+    db.py                   # Conexión MySQL y helpers
+    models/
+      commands_map.py       # Mapeo comando -> status_clave
+    repositories/
+      device_repository.py  # Acceso a devices
+      events_repository.py  # Acceso a eventos/estatus
+      demo_repository.py    # Acceso a demos (SP)
+    services/
+      websocket_manager.py  # Servidor Socket.IO y helpers
+    controllers/
+      socket_handlers.py    # Manejadores de eventos Socket.IO
+    routers/
+      health.py             # GET /api/health
+      devices.py            # /api/devices
+      movements.py          # /api/movements
+      events.py             # /api/events
+      status.py             # /api/status
+      simulate.py           # /api/simulate
 ```
 
-## 🔧 Instalación
+## Configuración (Windows Server EC2)
 
-### 1. Clonar el repositorio
+1. Instalar Python 3.11 (x64) y agregar a PATH.
+2. Clonar el repo en el servidor.
+3. Crear y activar un entorno virtual (recomendado).
 
-```bash
-cd backend-api
-```
-
-### 2. Crear entorno virtual
-
-```bash
-python -m venv venv
-
-# Windows PowerShell
-.\venv\Scripts\Activate.ps1
-
-# Linux/Mac
-source venv/bin/activate
-```
-
-### 3. Instalar dependencias
-
-```bash
+```powershell
+# En la carpeta backend/
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### 4. Configurar variables de entorno
+4. Crear archivo `.env` con credenciales de RDS (usa los mismos nombres del ejemplo):
 
-```bash
-# Copiar el archivo de ejemplo
-cp .env.example .env
+```
+# backend/.env (ejemplo)
+app_name="IoT Car Control API"
+environment="production"
+host="0.0.0.0"
+port="5500"
+cors_allow_origins="https://angellugo-dev.github.io,https://angellugo-dev.github.io/frontend-web-iot"
 
-# Editar .env con tus credenciales de AWS Aurora RDS
+# MySQL RDS
+db_host="instance-iot.cjsq62eqm24v.us-east-1.rds.amazonaws.com"
+db_port="3306"
+db_user="admin"
+db_password="REEMPLAZA_POR_TU_PASSWORD"
+db_name="iot_car_control"
 ```
 
-Configurar las siguientes variables en `.env`:
+Notas:
 
-```env
-DB_HOST=your-aurora-cluster.cluster-xxxxxxxxxx.us-east-1.rds.amazonaws.com
-DB_PORT=3306
-DB_USER=admin
-DB_PASSWORD=your_password
-DB_NAME=carrito_iot
-SECRET_KEY=your-secret-key
+- También puedes exportar las variables como estándar: DB_HOST, DB_USER, etc. El archivo `.env` es lo más sencillo.
+- No subas las credenciales al repositorio.
+
+5. Ejecutar el servidor (puerto 5500):
+
+```powershell
+python -m uvicorn app.main:app --host 0.0.0.0 --port 5500 --workers 1
 ```
 
-### 5. Ejecutar la aplicación
+Sugerencia: crea una regla de seguridad en el Security Group de tu instancia que permita el puerto 5500 desde tu IP o 0.0.0.0/0 si es demo.
 
-```bash
-cd src
-python app.py
+## Endpoints REST principales
+
+- GET /api/health
+- GET /api/devices
+- GET /api/devices/{id}
+- POST /api/devices/register
+- POST /api/movements/send
+- POST /api/movements/sequence
+- GET /api/events/{deviceId}?limit=50
+- GET /api/status/operational
+- POST /api/simulate/obstacle
+
+## Eventos Socket.IO
+
+Cliente emite:
+
+- `register_device` { device_id, device_name }
+- `unregister_device` { device_id }
+- `movement_command` { device_id, command, duration_ms, meta? }
+- `ping`
+
+Servidor emite:
+
+- `connection_response` { status, message }
+- `registration_success` { device_id, device_name }
+- `registration_error` { error }
+- `command_sent` { device_id, command, status_clave, duration_ms, meta }
+- `command_error` { error }
+- `execute_movement` { ... } (cuando llega via REST)
+- `obstacle_alert` { device_id, status_clave, meta }
+- `status_update` { ... }
+
+## Conexión Frontend (GitHub Pages)
+
+En `frontend-web/js/config.js`, establece:
+
+```js
+API_BASE_URL: "http://TU_IP_PUBLICA:5500",
+WEBSOCKET_URL: "http://TU_IP_PUBLICA:5500",
 ```
 
-La API estará disponible en: `http://0.0.0.0:5500`
+El cliente Socket.IO usará la ruta por defecto `/socket.io`.
 
-## 📡 API Endpoints
+## Notas de despliegue
 
-### Health Check
-
-```http
-GET /
-GET /api/health
-```
-
-### Dispositivos (Carritos)
-
-```http
-GET    /api/devices              # Listar todos los dispositivos
-GET    /api/devices/<id>         # Obtener dispositivo específico
-POST   /api/devices/register     # Registrar nuevo dispositivo
-```
-
-**Ejemplo POST /api/devices/register:**
-
-```json
-{
-  "device_name": "Carrito-001",
-  "client_ip": "192.168.1.100",
-  "country": "Mexico",
-  "city": "CDMX",
-  "latitude": 19.4326,
-  "longitude": -99.1332
-}
-```
-
-### Movimientos
-
-```http
-POST   /api/movements/send       # Enviar comando de movimiento
-GET    /api/events/<device_id>   # Obtener historial de eventos
-```
-
-**Ejemplo POST /api/movements/send:**
-
-```json
-{
-  "device_id": 1,
-  "command": "forward",
-  "duration_ms": 1000,
-  "meta": {
-    "speed": 100,
-    "origin": "web_app"
-  }
-}
-```
-
-**Comandos disponibles:**
-
-- `forward` - Adelante
-- `backward` - Atrás
-- `left` - Izquierda
-- `right` - Derecha
-- `stop` - Detener
-- `rotate_left` - Giro 360° izquierda
-- `rotate_right` - Giro 360° derecha
-- `forward_left` - Adelante + Izquierda
-- `forward_right` - Adelante + Derecha
-- `backward_left` - Atrás + Izquierda
-- `backward_right` - Atrás + Derecha
-
-### Estados
-
-```http
-GET    /api/status/operational   # Obtener estados operacionales
-```
-
-## 🔌 WebSocket (PUSH Communication)
-
-### Conexión
-
-```javascript
-const socket = io("http://localhost:5500");
-
-socket.on("connect", () => {
-  console.log("Conectado al servidor");
-});
-```
-
-### Eventos del Cliente → Servidor
-
-#### Registrar dispositivo
-
-```javascript
-socket.emit("register_device", {
-  device_id: 1,
-  device_name: "Carrito-001",
-});
-```
-
-#### Enviar comando de movimiento
-
-```javascript
-socket.emit("movement_command", {
-  device_id: 1,
-  command: "forward",
-  duration_ms: 1000,
-  meta: {
-    speed: 100,
-    origin: "web_interface",
-  },
-});
-```
-
-#### Reportar obstáculo detectado
-
-```javascript
-socket.emit("obstacle_detected", {
-  device_id: 1,
-  status_clave: 1,
-  meta: {
-    distance_cm: 10,
-    sensor: "ultrasonic",
-  },
-});
-```
-
-### Eventos del Servidor → Cliente
-
-#### Ejecución de movimiento (PUSH al dispositivo)
-
-```javascript
-socket.on("execute_movement", (data) => {
-  console.log("Ejecutar:", data.command);
-  // { command: 'forward', duration_ms: 1000, timestamp: '...' }
-});
-```
-
-#### Alerta de obstáculo
-
-```javascript
-socket.on("obstacle_alert", (data) => {
-  console.log("Obstáculo detectado:", data);
-});
-```
-
-#### Actualización de estado
-
-```javascript
-socket.on("status_update", (data) => {
-  console.log("Estado del dispositivo:", data);
-});
-```
-
-## 🗄️ Base de Datos
-
-### Schema AWS Aurora RDS
-
-El proyecto utiliza las siguientes tablas:
-
-- **devices**: Dispositivos registrados
-- **device_events**: Historial de eventos (movimientos, obstáculos)
-- **op_status**: Estados operacionales (comandos de movimiento)
-- **obstacle_status**: Estados de obstáculos
-- **demos**: Demostraciones programadas (futuro)
-- **demo_moves**: Movimientos de demostraciones (futuro)
-- **scheduled_demo_runs**: Ejecuciones programadas (futuro)
-
-Ver detalles completos en el schema proporcionado.
-
-## 🔐 Seguridad
-
-- **CORS**: Configurado para desarrollo (`origins: *`). En producción, especificar dominios permitidos.
-- **Variables de entorno**: Credenciales sensibles en `.env` (no versionado)
-- **AWS IAM**: Usar roles IAM en EC2 en lugar de credenciales hardcodeadas
-- **HTTPS**: En producción, usar certificados SSL/TLS
-- **Validación**: Todos los inputs son validados en los controladores
-
-## 🚀 Despliegue en AWS EC2
-
-### 1. Preparar EC2 Instance
-
-```bash
-# Actualizar sistema
-sudo apt update && sudo apt upgrade -y
-
-# Instalar Python 3.8+
-sudo apt install python3 python3-pip python3-venv -y
-
-# Instalar nginx (opcional, para proxy reverso)
-sudo apt install nginx -y
-```
-
-### 2. Clonar y configurar proyecto
-
-```bash
-git clone <your-repo-url>
-cd backend-api
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 3. Configurar .env con credenciales Aurora RDS
-
-### 4. Ejecutar con Gunicorn (producción)
-
-```bash
-gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:5500 src.app:app
-```
-
-### 5. Configurar como servicio systemd
-
-```bash
-sudo nano /etc/systemd/system/carrito-iot.service
-```
-
-```ini
-[Unit]
-Description=CarroIoT API Service
-After=network.target
-
-[Service]
-User=ubuntu
-WorkingDirectory=/home/ubuntu/backend-api
-Environment="PATH=/home/ubuntu/backend-api/venv/bin"
-ExecStart=/home/ubuntu/backend-api/venv/bin/gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:5500 src.app:app
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl start carrito-iot
-sudo systemctl enable carrito-iot
-```
-
-## 📊 Monitoring
-
-Ver logs en tiempo real:
-
-```bash
-sudo journalctl -u carrito-iot -f
-```
-
-## 🧪 Testing
-
-```bash
-# Instalar dependencias de testing
-pip install pytest pytest-flask
-
-# Ejecutar tests (cuando estén disponibles)
-pytest
-```
-
-## 📝 Notas de Desarrollo
-
-- **Patrón Singleton**: La clase `Database` implementa Singleton para reutilizar conexiones
-- **Context Managers**: Uso de `with` para gestión automática de cursores y transacciones
-- **OOP**: Separación clara entre Modelos (datos) y Controladores (lógica)
-- **Escalabilidad**: Diseñado para soportar múltiples dispositivos mediante rooms de WebSocket
-- **Logging**: Logs detallados en consola para debugging
-
-## 🔮 Futuras Mejoras
-
-- [ ] Autenticación JWT para endpoints
-- [ ] Rate limiting para prevenir abuso
-- [ ] Sistema de demos programados (ya está en DB schema)
-- [ ] Dashboard de monitoreo en tiempo real
-- [ ] Métricas con Prometheus/Grafana
-- [ ] Tests unitarios y de integración
-- [ ] CI/CD pipeline
-- [ ] Docker containerization
-
-## 👨‍💻 Autor
-
-Desarrollado para el proyecto CarroIoT
-Fecha: 2025
-
-## 📄 Licencia
-
-Proyecto privado - Todos los derechos reservados
+- Windows Server no necesita Nginx para esta demo; puedes ejecutar uvicorn como servicio con NSSM o un Programador de tareas.
+- Abre el puerto en el firewall de Windows: Inbound rule para TCP 5500.
+- Si luego quieres HTTPS, coloca un reverse proxy (Nginx/IIS) al frente.

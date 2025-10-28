@@ -1,43 +1,7 @@
-# Dependencias para API Backend - CarroIoT
-# Python 3.8+
-
-# Framework Web
-Flask==3.0.0
-Werkzeug==3.0.1
-
-# WebSocket para comunicación PUSH
-flask-socketio==5.3.5
-python-socketio==5.10.0
-eventlet==0.33.3
-
-# CORS para aceptar cualquier IP
-flask-cors==4.0.0
-
-# Base de datos MySQL/Aurora RDS
-PyMySQL==1.1.0
-cryptography==41.0.7
-
-# Variables de entorno
-python-dotenv==1.0.0
-
-# Utilidades
-python-dateutil==2.8.2
-
-# Geolocalización (opcional para futuras features)
-geopy==2.4.1
-
-# Logging mejorado
-colorlog==6.8.0
-
-# Validación de datos
-jsonschema==4.20.0
-
-# Seguridad
-bleach==6.1.0
-
-# Testing (desarrollo)
-pytest==7.4.3
-pytest-flask==1.3.0
-
-# Production server
-gunicorn==21.2.0
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+python-socketio[asgi]==5.11.3
+PyMySQL==1.1.1
+pydantic==2.8.2
+pydantic-settings==2.3.4
+python-dotenv==1.0.1
