@@ -8,6 +8,10 @@ API en arquitectura MVC con comunicaciones push por Socket.IO, compatible con el
 - CORS: abierto y con whitelist al dominio de GitHub Pages
 - Base de datos: MySQL en AWS RDS (usa SPs ya creados)
 
+## 📖 Documentación
+
+- **[WEBSOCKET.md](./WEBSOCKET.md)** - Guía completa de conexión WebSocket (URLs, configuración, solución de problemas)
+
 ## Estructura
 
 ```
@@ -118,10 +122,12 @@ En `frontend-web/js/config.js`, establece:
 
 ```js
 API_BASE_URL: "http://TU_IP_PUBLICA:5500",
-WEBSOCKET_URL: "http://TU_IP_PUBLICA:5500",
+WEBSOCKET_URL: "http://TU_IP_PUBLICA:5500",  // Misma URL que la API
 ```
 
-El cliente Socket.IO usará la ruta por defecto `/socket.io`.
+**IMPORTANTE:** WebSocket usa la misma URL HTTP que la API REST. Socket.IO maneja automáticamente el upgrade a WebSocket.
+
+📖 **Para más detalles sobre conexiones WebSocket, consulta [WEBSOCKET.md](./WEBSOCKET.md)**
 
 ## Notas de despliegue
 
